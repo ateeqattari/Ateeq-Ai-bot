@@ -1,4 +1,4 @@
-# ==========================================
+/# ==========================================
 # 1. CREDENTIALS & API KEYS CONFIGURATION
 # ==========================================
 import telebot
@@ -13,7 +13,7 @@ import random
 import threading
 
 # Configure your tokens and API keys here
-TELEGRAM_TOKEN = "ENTER_YOUR_TELEGRAM_BOT_API_TOKEN_HERE"
+TELEGRAM_TOKEN = "ENTER_YOUR_TELEGRAM_API_TOKEN_HERE"
 GEMINI_API_KEY = "ENTER_YOUR_GEMINI_API_KEY_HERE"
 WEATHER_API_KEY = "ENTER_YOUR_WEATHER_API_KEY_HERE"
 NEWS_API_KEY = "ENTER_YOUR_NEWS_API_KEY_HERE"
@@ -51,24 +51,51 @@ DB_FILE = "bot_memory.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute('''
+    
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0;")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN persona TEXT DEFAULT 'friendly';")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT 'No bio set yet.';")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER;")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_history (
             chat_id INTEGER,
             role TEXT,
             content TEXT
         )
-    ''')
-    cursor.execute('''
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             chat_id INTEGER PRIMARY KEY,
             username TEXT,
             is_vip INTEGER DEFAULT 0,
-            persona TEXT DEFAULT 'friendly',
+            persona TEXT DEFAULT "friendly",
             points INTEGER DEFAULT 0,
             referred_by INTEGER,
-            bio TEXT DEFAULT 'No bio set yet.'
+            bio TEXT DEFAULT "No bio set yet."
         )
-    ''')
+    """)
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_notes (
             chat_id INTEGER,
@@ -1455,11 +1482,13 @@ def handle_incoming(message):
         bot.edit_message_text(chat_id=chat_id, message_id=wait_msg.message_id, text=f"An error occurred: {e} ⚠️")
 
 if __name__ == "__main__":
-    while True:
-        try:
-            print("Connecting to Telegram servers...")
-            bot.polling(none_stop=True, interval=3, timeout=20)
-        except Exception as e:
-            print(f"Network connection warning: {e}. Reconnecting in 5 seconds...")
-            time.sleep(5)
+ while True:
+    try:
+        print("Connecting to Telegram servers...")
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        print(f"Network connection warning: {e}. Reconnecting in 5 seconds...")
+        time.sleep(5)
+    except KeyboardInterrupt:
+        break
 
