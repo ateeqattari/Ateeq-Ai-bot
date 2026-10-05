@@ -1,4 +1,4 @@
-/# ==========================================
+# ==========================================
 # 1. CREDENTIALS & API KEYS CONFIGURATION
 # ==========================================
 import telebot
@@ -11,6 +11,7 @@ import time
 import os
 import random
 import threading
+from flask import Flask, request, jsonify
 
 # Configure your tokens and API keys here
 TELEGRAM_TOKEN = "ENTER_YOUR_TELEGRAM_API_TOKEN_HERE"
@@ -1481,14 +1482,60 @@ def handle_incoming(message):
     except Exception as e:
         bot.edit_message_text(chat_id=chat_id, message_id=wait_msg.message_id, text=f"An error occurred: {e} ⚠️")
 
-if __name__ == "__main__":
- while True:
-    try:
-        print("Connecting to Telegram servers...")
-        bot.infinity_polling(timeout=60, long_polling_timeout=60)
-    except Exception as e:
-        print(f"Network connection warning: {e}. Reconnecting in 5 seconds...")
-        time.sleep(5)
-    except KeyboardInterrupt:
-        break
+app = Flask(__name__)
 
+# 1. WhatsApp Webhook Verification ke liye
+@app.route('/whatsapp-webhook', methods=['GET'])
+def verify_whatsapp():
+    verify_token = "ateeq_secret_token"
+    mode = request.args.get('hub.mode')
+    token = request.args.get('hub.verify_token')
+    challenge = request.args.get('hub.challenge')
+    
+    if mode and token:
+        if mode == 'subscribe' and token == verify_token:
+            return challenge, 200
+        else:
+            return "Verification failed", 403
+    return "WhatsApp Bot Server is Running!", 200
+
+# 2. Jab koi WhatsApp par message bhejega
+@app.route('/whatsapp-webhook', methods=['POST'])
+def whatsapp_endpoint():
+    try:
+        data = request.get_json()
+        
+        if 'entry' in data:
+            for entry in data['entry']:
+                for change in entry.get('changes', []):
+                    value = change.get('value', {})
+                    if 'messages' in value:
+                        msg_info = value['messages'][0]
+                        sender_phone = msg_info['from']
+                        incoming_msg = msg_info['text']['body']
+                        
+                        print(f"WhatsApp Message Mila -> {sender_phone}: {incoming_msg}")
+                        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        print(f"Error aa gaya: {e}")
+        return jsonify({"status": "error"}), 400
+
+def run_flask():
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
+if __name__ == "__main__":
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    print("Flask server background mein start ho chuka hai...")
+
+    while True:
+        try:
+            print("Connecting to Telegram servers...")
+            bot.infinity_polling(timeout=60, long_polling_timeout=60)
+        except Exception as e:
+            print(f"Network connection warning: {e}. Reconnecting...")
+            time.sleep(5)
+        except KeyboardInterrupt:
+            break
